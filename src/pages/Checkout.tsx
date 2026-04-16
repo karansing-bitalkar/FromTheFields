@@ -9,6 +9,7 @@ import {
 } from "react-icons/ri";
 import PageLayout from "@/components/layout/PageLayout";
 import { PRODUCTS } from "@/lib/mockData";
+import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import type { CartItem } from "@/hooks/useCart";
 
@@ -283,6 +284,7 @@ function ConfirmStep({ orderId, slot, total }: { orderId: string; slot: string; 
 export default function Checkout() {
   const navigate  = useNavigate();
   const location  = useLocation();
+  const { clearCart } = useCart();
 
   // Read cart items passed from Customer Dashboard Cart via route state
   const passedItems = (location.state as { cartItems?: CartItem[] } | null)?.cartItems;
@@ -303,7 +305,10 @@ export default function Checkout() {
 
   const handleNext = () => {
     if (!canProceed()) { toast.error("Please make a selection before continuing."); return; }
-    if (step === 2) toast.success("Order placed successfully!");
+    if (step === 2) {
+      toast.success("Order placed successfully!");
+      clearCart();
+    }
     setStep((s) => Math.min(s + 1, 3));
   };
 

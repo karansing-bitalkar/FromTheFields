@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   RiGroupLine, RiShoppingBagLine, RiMoneyDollarCircleLine,
   RiCheckboxCircleLine, RiCloseCircleLine, RiEditLine, RiDeleteBinLine,
   RiAddLine, RiArrowLeftSLine, RiArrowRightSLine,
   RiAlertLine, RiMegaphoneLine, RiLeafLine, RiSendPlaneLine,
+  RiUserLine, RiDownloadLine, RiAddLine as RiAddNewLine,
 } from "react-icons/ri";
 import { useNotifications } from "@/hooks/useNotifications";
 import {
@@ -323,8 +324,10 @@ function ManageUsers() {
 // ─── ApproveFarmers ───────────────────────────────────────────────────────────
 function ApproveFarmers() {
   const [farmers, setFarmers] = useState<Farmer[]>(FARMERS);
+  const [viewFarmer, setViewFarmer] = useState<Farmer | null>(null);
   const approve = (id: string) => { setFarmers((f) => f.map((fm) => fm.id === id ? { ...fm, approved: true } : fm)); toast.success("Farmer approved!"); };
   const reject  = (id: string) => { setFarmers((f) => f.filter((fm) => fm.id !== id)); toast.success("Farmer rejected."); };
+  const farmerProducts = (farmerId: string) => PRODUCTS.filter((p) => p.farmerId === farmerId).length;
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-6">Approve Farmers</h1>
@@ -342,19 +345,109 @@ function ApproveFarmers() {
               <p className="text-muted-foreground text-sm">{farmer.farm} · {farmer.location}</p>
               <p className="text-xs text-muted-foreground">{farmer.products} products · Joined {farmer.joinedAt}</p>
             </div>
-            {!farmer.approved && (
-              <div className="flex gap-2">
-                <button onClick={() => approve(farmer.id)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors">
-                  <RiCheckboxCircleLine /> Approve
-                </button>
-                <button onClick={() => reject(farmer.id)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-destructive/40 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors">
-                  <RiCloseCircleLine /> Reject
-                </button>
-              </div>
-            )}
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => setViewFarmer(farmer)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+                <RiUserLine /> View Profile
+              </button>
+              {!farmer.approved && (
+                <>
+                  <button onClick={() => approve(farmer.id)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors">
+                    <RiCheckboxCircleLine /> Approve
+                  </button>
+                  <button onClick={() => reject(farmer.id)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-destructive/40 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors">
+                    <RiCloseCircleLine /> Reject
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Farmer Profile Modal */}
+      <Modal isOpen={!!viewFarmer} onClose={() => setViewFarmer(null)} title="Farmer Profile">
+        {viewFarmer && (
+          <div className="space-y-5">
+            {/* Header */}
+            <div className="flex items-center gap-4 pb-5 border-b border-border">
+              <img src={viewFarmer.image} alt={viewFarmer.name} className="w-16 h-16 rounded-2xl object-cover border-2 border-primary/20 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <h3 className="font-bold text-lg">{viewFarmer.name}</h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${viewFarmer.approved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                    {viewFarmer.approved ? "Approved" : "Pending Approval"}
+                  </span>
+                </div>
+                <p className="text-primary font-medium text-sm">{viewFarmer.farm}</p>
+                <p className="text-muted-foreground text-sm">{viewFarmer.location}</p>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                ["Products", farmerProducts(viewFarmer.id) || viewFarmer.products],
+                ["Rating", "4.8 ★"],
+                ["Years on Platform", "3+"],
+              ].map(([label, val]) => (
+                <div key={label} className="bg-muted/40 rounded-xl p-3 text-center">
+                  <p className="font-bold text-lg text-primary">{val}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Details */}
+            <div className="space-y-3">
+              {[
+                ["Email", viewFarmer.email],
+                ["Location", viewFarmer.location],
+                ["Member Since", viewFarmer.joinedAt],
+              ].map(([label, val]) => (
+                <div key={label} className="flex justify-between text-sm py-2 border-b border-border/60 last:border-0">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium text-right">{val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Story */}
+            <div className="bg-muted/30 rounded-xl p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-medium">Farm Story</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{viewFarmer.story}</p>
+            </div>
+
+            {/* Certifications */}
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-medium">Certification Status</p>
+              <div className="space-y-2">
+                {[["USDA Organic", viewFarmer.approved], ["Non-GMO Project", viewFarmer.approved], ["Platform Verified", viewFarmer.approved]].map(([cert, verified]) => (
+                  <div key={cert as string} className="flex items-center justify-between p-2.5 rounded-xl bg-muted/30">
+                    <span className="text-sm font-medium">{cert as string}</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${verified ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                      {verified ? "Verified" : "Pending"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Link to={`/farmer/${viewFarmer.id}`} target="_blank"
+                onClick={() => setViewFarmer(null)}
+                className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold text-sm text-center hover:bg-primary/90 transition-all flex items-center justify-center gap-2">
+                View Public Profile →
+              </Link>
+              <button onClick={() => setViewFarmer(null)}
+                className="flex-1 py-3 rounded-xl border border-border font-semibold text-sm hover:bg-muted transition-colors">
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -574,10 +667,43 @@ function SendAnnouncement() {
 }
 
 // ─── Product Management ───────────────────────────────────────────────────────
+const EMPTY_ADD_FORM = { name: "", category: "Vegetables", price: "", farmerId: "", stock: "", unit: "lb", organic: false };
+
+function exportProductsCSV(products: typeof PRODUCTS) {
+  const headers = ["Name", "Category", "Farmer", "Price", "Unit", "Stock", "Organic", "Status"];
+  const rows = products.map((p) => {
+    const farmer = FARMERS.find((f) => f.id === p.farmerId);
+    const status = p.stock > 20 ? "In Stock" : p.stock > 0 ? "Low Stock" : "Out of Stock";
+    return [
+      `"${p.name}"`,
+      `"${p.category}"`,
+      `"${farmer?.name ?? "Unknown"}"`,
+      `$${p.price.toFixed(2)}`,
+      p.unit,
+      p.stock,
+      p.organic ? "Yes" : "No",
+      `"${status}"`,
+    ].join(",");
+  });
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `fromthefields_products_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  toast.success(`Exported ${products.length} products to CSV!`);
+}
+
 function ProductManagement() {
   const [products, setProducts] = useState(PRODUCTS);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
   const PAGE_SIZE = 10;
 
   const filtered = products.filter((p) =>
@@ -592,6 +718,37 @@ function ProductManagement() {
     toast.success("Product removed.");
   };
 
+  const handleAddProduct = () => {
+    if (!addForm.name.trim() || !addForm.price || !addForm.stock || !addForm.farmerId) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    const farmer = FARMERS.find((f) => f.id === addForm.farmerId);
+    const newProduct = {
+      id: `prod-admin-${Date.now()}`,
+      name: addForm.name.trim(),
+      category: addForm.category,
+      price: parseFloat(addForm.price),
+      unit: addForm.unit,
+      stock: parseInt(addForm.stock),
+      organic: addForm.organic,
+      farmerId: addForm.farmerId,
+      farmer: farmer?.name ?? "",
+      image: `https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&q=80`,
+      rating: 0,
+      reviews: 0,
+      freshness: "fresh" as const,
+      description: "",
+      harvestDate: new Date().toISOString(),
+      discount: undefined,
+    };
+    setProducts((prev) => [newProduct as any, ...prev]);
+    setAddForm(EMPTY_ADD_FORM);
+    setShowAddModal(false);
+    toast.success(`Product "${newProduct.name}" added successfully!`);
+    setPage(1);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -601,10 +758,18 @@ function ProductManagement() {
             Total: <span className="font-semibold text-foreground">{products.length} products</span> across {[...new Set(products.map(p => p.category))].length} categories
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search products..."
             className="px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
+          <button onClick={() => exportProductsCSV(filtered)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+            <RiDownloadLine /> Export CSV
+          </button>
+          <button onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-all">
+            <RiAddLine /> Add Product
+          </button>
         </div>
       </div>
 
@@ -694,6 +859,73 @@ function ProductManagement() {
           </div>
         )}
       </div>
+
+      {/* Add Product Modal */}
+      <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddForm(EMPTY_ADD_FORM); }} title="Add New Product">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Product Name <span className="text-destructive">*</span></label>
+            <input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+              placeholder="e.g., Organic Tomatoes"
+              className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Category</label>
+              <select value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+                {["Vegetables", "Fruits", "Dairy & Eggs", "Leafy Greens", "Natural", "Herbs"].map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Unit</label>
+              <select value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+                {["lb", "kg", "bunch", "pint", "dozen", "jar", "bag"].map((u) => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Price ($) <span className="text-destructive">*</span></label>
+              <input type="number" step="0.01" min="0" value={addForm.price} onChange={(e) => setAddForm({ ...addForm, price: e.target.value })}
+                placeholder="0.00"
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Stock Qty <span className="text-destructive">*</span></label>
+              <input type="number" min="0" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })}
+                placeholder="50"
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Assign Farmer <span className="text-destructive">*</span></label>
+            <select value={addForm.farmerId} onChange={(e) => setAddForm({ ...addForm, farmerId: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+              <option value="">— Select a farmer —</option>
+              {FARMERS.map((f) => (
+                <option key={f.id} value={f.id}>{f.name} · {f.farm}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl">
+            <button type="button" onClick={() => setAddForm({ ...addForm, organic: !addForm.organic })}
+              className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${addForm.organic ? "bg-primary" : "bg-muted border border-border"}`}>
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${addForm.organic ? "left-7" : "left-1"}`} />
+            </button>
+            <span className="text-sm font-medium flex items-center gap-1"><RiLeafLine className="text-primary" /> Certified Organic</span>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={handleAddProduct}
+              className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm">
+              <RiAddNewLine /> Add Product
+            </button>
+            <button onClick={() => { setShowAddModal(false); setAddForm(EMPTY_ADD_FORM); }}
+              className="flex-1 py-3 rounded-xl border border-border font-semibold hover:bg-muted transition-colors text-sm">Cancel</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
