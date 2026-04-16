@@ -6,26 +6,30 @@ import {
   RiTruckLine, RiCheckLine, RiDeleteBinLine, RiEditLine, RiAddLine,
   RiSubtractLine, RiMapPinLine, RiBellLine, RiShoppingCartLine,
   RiLeafLine, RiStarFill, RiTimeLine, RiStarLine, RiCheckboxCircleLine,
-  RiPencilLine,
+  RiPencilLine, RiArrowLeftSLine, RiArrowRightSLine, RiRefreshLine,
+  RiHeartFill, RiExternalLinkLine,
 } from "react-icons/ri";
 import DashboardSidebar from "@/components/features/DashboardSidebar";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/lib/auth";
-import { ORDERS, PRODUCTS, SUBSCRIPTIONS } from "@/lib/mockData";
+import { ORDERS, PRODUCTS, SUBSCRIPTIONS, FARMERS } from "@/lib/mockData";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useFollowedFarms } from "@/hooks/useFollowedFarms";
+import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-  pending:    { label: "Pending",    color: "bg-yellow-100 text-yellow-700" },
-  confirmed:  { label: "Confirmed",  color: "bg-blue-100 text-blue-700" },
-  picked:     { label: "Picked Up",  color: "bg-purple-100 text-purple-700" },
-  "in-transit": { label: "In Transit", color: "bg-orange-100 text-orange-700" },
-  delivered:  { label: "Delivered",  color: "bg-green-100 text-green-700" },
-  cancelled:  { label: "Cancelled",  color: "bg-red-100 text-red-700" },
+  pending:      { label: "Pending",     color: "bg-yellow-100 text-yellow-700" },
+  confirmed:    { label: "Confirmed",   color: "bg-blue-100 text-blue-700" },
+  picked:       { label: "Picked Up",   color: "bg-purple-100 text-purple-700" },
+  "in-transit": { label: "In Transit",  color: "bg-orange-100 text-orange-700" },
+  delivered:    { label: "Delivered",   color: "bg-green-100 text-green-700" },
+  cancelled:    { label: "Cancelled",   color: "bg-red-100 text-red-700" },
 };
 
+// ─── Overview ────────────────────────────────────────────────────────────────
 function Overview() {
   const { user } = useAuth();
   const myOrders = ORDERS.filter((o) => o.customerId === "cust-001");
@@ -37,10 +41,10 @@ function Overview() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         {[
-          { label: "Total Orders", value: myOrders.length, icon: RiShoppingBagLine, color: "bg-blue-50 text-blue-600" },
-          { label: "Active Orders", value: myOrders.filter(o => o.status !== "delivered" && o.status !== "cancelled").length, icon: RiTruckLine, color: "bg-orange-50 text-orange-600" },
-          { label: "Delivered", value: myOrders.filter(o => o.status === "delivered").length, icon: RiCheckLine, color: "bg-green-50 text-green-600" },
-          { label: "Subscriptions", value: 1, icon: RiCalendarCheckLine, color: "bg-purple-50 text-purple-600" },
+          { label: "Total Orders",   value: myOrders.length,                                                               icon: RiShoppingBagLine, color: "bg-blue-50 text-blue-600"   },
+          { label: "Active Orders",  value: myOrders.filter((o) => o.status !== "delivered" && o.status !== "cancelled").length, icon: RiTruckLine,        color: "bg-orange-50 text-orange-600" },
+          { label: "Delivered",      value: myOrders.filter((o) => o.status === "delivered").length,                        icon: RiCheckLine,        color: "bg-green-50 text-green-600"  },
+          { label: "Subscriptions",  value: 1,                                                                              icon: RiCalendarCheckLine, color: "bg-purple-50 text-purple-600" },
         ].map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -82,10 +86,10 @@ function Overview() {
           <h2 className="font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Browse Market", href: "/marketplace", icon: RiLeafLine, color: "bg-green-50 text-green-600" },
-              { label: "Checkout", href: "/checkout", icon: RiShoppingCartLine, color: "bg-blue-50 text-blue-600" },
-              { label: "Track Order", href: `/order/ORD-002/track`, icon: RiTruckLine, color: "bg-orange-50 text-orange-600" },
-              { label: "Subscriptions", href: "/subscription", icon: RiCalendarCheckLine, color: "bg-purple-50 text-purple-600" },
+              { label: "Browse Market",  href: "/marketplace",       icon: RiLeafLine,         color: "bg-green-50 text-green-600"   },
+              { label: "Checkout",       href: "/checkout",           icon: RiShoppingCartLine, color: "bg-blue-50 text-blue-600"     },
+              { label: "Track Order",    href: "/order/ORD-002/track", icon: RiTruckLine,        color: "bg-orange-50 text-orange-600" },
+              { label: "Subscriptions",  href: "/subscription",       icon: RiCalendarCheckLine, color: "bg-purple-50 text-purple-600" },
             ].map((action) => {
               const Icon = action.icon;
               return (
@@ -103,14 +107,35 @@ function Overview() {
   );
 }
 
+// ─── My Orders (with Reorder + Pagination) ───────────────────────────────────
+const ORDERS_PAGE_SIZE = 10;
+
 function MyOrders() {
   const myOrders = ORDERS.filter((o) => o.customerId === "cust-001");
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const { reorder } = useCart();
+
+  const totalPages = Math.ceil(myOrders.length / ORDERS_PAGE_SIZE);
+  const paginated = myOrders.slice((page - 1) * ORDERS_PAGE_SIZE, page * ORDERS_PAGE_SIZE);
+
+  const handleReorder = (orderId: string) => {
+    const order = myOrders.find((o) => o.id === orderId);
+    if (!order) return;
+    reorder(order.items);
+    toast.success(`${order.items.length} item${order.items.length > 1 ? "s" : ""} added to your cart!`, {
+      action: { label: "View Cart", onClick: () => {} },
+    });
+  };
+
   return (
     <div>
-      <h1 className="font-serif text-3xl font-bold mb-6">My Orders</h1>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+        <h1 className="font-serif text-3xl font-bold">My Orders</h1>
+        <p className="text-muted-foreground text-sm">{myOrders.length} total orders</p>
+      </div>
       <div className="space-y-4">
-        {myOrders.map((order) => {
+        {paginated.map((order) => {
           const conf = statusConfig[order.status];
           return (
             <div key={order.id} className="bg-card rounded-2xl p-5 shadow-card border border-border">
@@ -119,13 +144,19 @@ function MyOrders() {
                   <p className="font-bold text-lg font-serif">{order.id}</p>
                   <p className="text-muted-foreground text-sm">{order.date} · {order.deliveryAddress}</p>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${conf.color}`}>{conf.label}</span>
                   {order.status !== "delivered" && order.status !== "cancelled" && (
                     <Link to={`/order/${order.id}/track`}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
                       <RiTruckLine /> Track Order
                     </Link>
+                  )}
+                  {order.status === "delivered" && (
+                    <button onClick={() => handleReorder(order.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-green-50 text-green-700 border border-green-200 text-xs font-semibold hover:bg-green-100 transition-colors">
+                      <RiRefreshLine /> Reorder
+                    </button>
                   )}
                   {order.status === "pending" && (
                     <button onClick={() => setCancelId(order.id)} className="text-xs text-destructive hover:underline">Cancel</button>
@@ -149,35 +180,67 @@ function MyOrders() {
           );
         })}
       </div>
-      <ConfirmDialog isOpen={!!cancelId} onCancel={() => setCancelId(null)} onConfirm={() => { setCancelId(null); toast.success("Order cancelled successfully."); }}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-8 flex-wrap">
+          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}
+            className="flex items-center gap-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <RiArrowLeftSLine /> Prev
+          </button>
+          <div className="flex gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button key={p} onClick={() => setPage(p)}
+                className={`w-10 h-10 rounded-xl text-sm font-semibold transition-all ${p === page ? "bg-primary text-white shadow-sm" : "border border-border hover:bg-muted"}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}
+            className="flex items-center gap-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            Next <RiArrowRightSLine />
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog isOpen={!!cancelId} onCancel={() => setCancelId(null)}
+        onConfirm={() => { setCancelId(null); toast.success("Order cancelled successfully."); }}
         title="Cancel Order?" message="Are you sure you want to cancel this order? This cannot be undone." confirmText="Cancel Order" />
     </div>
   );
 }
 
+// ─── Cart (persisted, wired to Checkout) ─────────────────────────────────────
 function Cart() {
-  const [cartItems, setCartItems] = useState(PRODUCTS.slice(0, 3).map((p) => ({ product: p, quantity: 1 })));
+  const { items, removeItem, updateQty, clearCart, subtotal, totalItems } = useCart();
   const [removeId, setRemoveId] = useState<string | null>(null);
   const navigate = useNavigate();
-  const total = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-  const updateQty = (id: string, delta: number) => {
-    setCartItems((prev) => prev.map((i) => i.product.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
+
+  const handleCheckout = () => {
+    if (items.length === 0) { toast.error("Your cart is empty."); return; }
+    navigate("/checkout", { state: { cartItems: items } });
   };
+
   return (
     <div>
-      <h1 className="font-serif text-3xl font-bold mb-6">My Cart</h1>
-      {cartItems.length === 0 ? (
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+        <h1 className="font-serif text-3xl font-bold">My Cart</h1>
+        {items.length > 0 && (
+          <button onClick={() => clearCart()} className="text-sm text-destructive hover:underline font-medium">Clear Cart</button>
+        )}
+      </div>
+      {items.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <RiShoppingCartLine className="text-5xl mx-auto mb-4 text-muted-foreground/40" />
-          <p>Your cart is empty.</p>
-          <Link to="/marketplace" className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
+          <p className="mb-4">Your cart is empty.</p>
+          <Link to="/marketplace" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
             Browse Marketplace
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-3">
-            {cartItems.map((item) => (
+            {items.map((item) => (
               <div key={item.product.id} className="bg-card rounded-2xl p-4 shadow-card flex items-center gap-4">
                 <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-xl object-cover" />
                 <div className="flex-1">
@@ -185,9 +248,15 @@ function Cart() {
                   <p className="text-muted-foreground text-sm">${item.product.price.toFixed(2)} / {item.product.unit}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => updateQty(item.product.id, -1)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><RiSubtractLine /></button>
+                  <button onClick={() => updateQty(item.product.id, item.quantity - 1)}
+                    className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors">
+                    <RiSubtractLine />
+                  </button>
                   <span className="w-8 text-center font-medium">{item.quantity}</span>
-                  <button onClick={() => updateQty(item.product.id, 1)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><RiAddLine /></button>
+                  <button onClick={() => updateQty(item.product.id, item.quantity + 1)}
+                    className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors">
+                    <RiAddLine />
+                  </button>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-primary">${(item.product.price * item.quantity).toFixed(2)}</p>
@@ -199,20 +268,27 @@ function Cart() {
           <div className="bg-card rounded-2xl p-5 shadow-card h-fit">
             <h3 className="font-semibold mb-4">Order Summary</h3>
             <div className="space-y-2 text-sm mb-4">
-              <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${total.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Items ({totalItems})</span><span>${subtotal.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="text-primary">Free</span></div>
-              <div className="border-t border-border pt-2 flex justify-between font-bold text-lg"><span>Total</span><span className="text-primary">${total.toFixed(2)}</span></div>
+              <div className="border-t border-border pt-2 flex justify-between font-bold text-lg">
+                <span>Total</span><span className="text-primary">${subtotal.toFixed(2)}</span>
+              </div>
             </div>
-            <button onClick={() => navigate("/checkout")} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all">Proceed to Checkout</button>
+            <button onClick={handleCheckout}
+              className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all">
+              Proceed to Checkout
+            </button>
           </div>
         </div>
       )}
-      <ConfirmDialog isOpen={!!removeId} onCancel={() => setRemoveId(null)} onConfirm={() => { setCartItems((p) => p.filter((i) => i.product.id !== removeId)); setRemoveId(null); toast.success("Item removed from cart."); }}
+      <ConfirmDialog isOpen={!!removeId} onCancel={() => setRemoveId(null)}
+        onConfirm={() => { if (removeId) removeItem(removeId); setRemoveId(null); toast.success("Item removed from cart."); }}
         title="Remove Item?" message="Remove this item from your cart?" confirmText="Remove" />
     </div>
   );
 }
 
+// ─── Wishlist ─────────────────────────────────────────────────────────────────
 function Wishlist() {
   const { wishlistIds, removeFromWishlist, clearWishlist } = useWishlist();
   const [removeId, setRemoveId] = useState<string | null>(null);
@@ -226,7 +302,6 @@ function Wishlist() {
           <button onClick={() => clearWishlist()} className="text-sm text-destructive hover:underline font-medium">Clear All</button>
         )}
       </div>
-
       {savedProducts.length === 0 ? (
         <div className="text-center py-20 bg-card rounded-2xl shadow-card">
           <RiHeartLine className="text-5xl mx-auto mb-4 text-muted-foreground/40" />
@@ -290,13 +365,14 @@ function Wishlist() {
   );
 }
 
+// ─── Notifications ────────────────────────────────────────────────────────────
 function Notifications() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const typeColors: Record<string, string> = {
-    order: "bg-blue-100 text-blue-700",
+    order:        "bg-blue-100 text-blue-700",
     subscription: "bg-purple-100 text-purple-700",
-    farmer: "bg-green-100 text-green-700",
-    delivery: "bg-orange-100 text-orange-700",
+    farmer:       "bg-green-100 text-green-700",
+    delivery:     "bg-orange-100 text-orange-700",
   };
   return (
     <div>
@@ -345,61 +421,40 @@ function Notifications() {
   );
 }
 
+// ─── My Reviews ───────────────────────────────────────────────────────────────
 function MyReviews() {
-  // Get delivered orders for the demo customer
   const deliveredOrders = ORDERS.filter(
     (o) => o.customerId === "cust-001" && o.status === "delivered"
   );
-
-  // Collect unique products from delivered orders
   const reviewableItems = deliveredOrders.flatMap((order) =>
     order.items.map((item) => ({ product: item.product, orderId: order.id, orderDate: order.date }))
   );
-
-  // State: { [productId]: { rating, comment, submitted } }
   const [reviews, setReviews] = useState<Record<string, { rating: number; comment: string; submitted: boolean; hover: number }>>(
     () => Object.fromEntries(reviewableItems.map((i) => [i.product.id + i.orderId, { rating: 0, comment: "", submitted: false, hover: 0 }]))
   );
-
-  const setRating = (key: string, rating: number) =>
-    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], rating } }));
-
-  const setComment = (key: string, comment: string) =>
-    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], comment } }));
-
-  const setHover = (key: string, hover: number) =>
-    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], hover } }));
-
+  const setRating  = (key: string, rating: number)  => setReviews((p) => ({ ...p, [key]: { ...p[key], rating } }));
+  const setComment = (key: string, comment: string) => setReviews((p) => ({ ...p, [key]: { ...p[key], comment } }));
+  const setHover   = (key: string, hover: number)   => setReviews((p) => ({ ...p, [key]: { ...p[key], hover } }));
   const submitReview = (key: string, productName: string) => {
-    if (reviews[key].rating === 0) {
-      toast.error("Please select a star rating before submitting.");
-      return;
-    }
-    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], submitted: true } }));
+    if (reviews[key].rating === 0) { toast.error("Please select a star rating."); return; }
+    setReviews((p) => ({ ...p, [key]: { ...p[key], submitted: true } }));
     toast.success(`Review submitted for ${productName}!`);
   };
-
-  const editReview = (key: string) =>
-    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], submitted: false } }));
-
+  const editReview = (key: string) => setReviews((p) => ({ ...p, [key]: { ...p[key], submitted: false } }));
   const RATING_LABELS = ["", "Poor", "Fair", "Good", "Great", "Excellent"];
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="font-serif text-3xl font-bold">My Reviews</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Rate products from your delivered orders — your feedback helps other customers!
-        </p>
+        <p className="text-muted-foreground text-sm mt-1">Rate products from your delivered orders.</p>
       </div>
-
       {reviewableItems.length === 0 ? (
         <div className="text-center py-20 bg-card rounded-2xl shadow-card">
           <RiStarLine className="text-5xl mx-auto mb-4 text-muted-foreground/40" />
           <h3 className="font-semibold text-lg mb-2">No delivered orders yet</h3>
-          <p className="text-muted-foreground text-sm mb-5">Reviews will appear here once your orders are delivered.</p>
-          <Link to="/marketplace"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
+          <p className="text-muted-foreground text-sm mb-5">Reviews appear here once your orders are delivered.</p>
+          <Link to="/marketplace" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
             Browse Marketplace
           </Link>
         </div>
@@ -409,14 +464,11 @@ function MyReviews() {
             const key = item.product.id + item.orderId;
             const rev = reviews[key];
             const activeRating = rev.hover > 0 ? rev.hover : rev.rating;
-
             return (
-              <motion.div key={key}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 className="bg-card rounded-2xl shadow-card border border-border overflow-hidden">
                 <div className="flex items-center gap-4 p-5 border-b border-border/60">
-                  <img src={item.product.image} alt={item.product.name}
-                    className="w-16 h-16 rounded-2xl object-cover shrink-0" />
+                  <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <h3 className="font-semibold">{item.product.name}</h3>
@@ -433,75 +485,45 @@ function MyReviews() {
                     <p className="text-xs text-muted-foreground">/ {item.product.unit}</p>
                   </div>
                 </div>
-
                 <div className="p-5">
                   <AnimatePresence mode="wait">
                     {rev.submitted ? (
-                      <motion.div key="submitted"
-                        initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
+                      <motion.div key="submitted" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
                         className="flex items-center justify-between flex-wrap gap-3">
                         <div>
                           <div className="flex items-center gap-1 mb-1">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <RiStarFill key={s}
-                                className={`text-xl ${s <= rev.rating ? "text-amber-400" : "text-muted-foreground/20"}`} />
+                            {[1,2,3,4,5].map((s) => (
+                              <RiStarFill key={s} className={`text-xl ${s <= rev.rating ? "text-amber-400" : "text-muted-foreground/20"}`} />
                             ))}
                             <span className="ml-2 text-sm font-semibold text-amber-600">{RATING_LABELS[rev.rating]}</span>
                           </div>
-                          {rev.comment && (
-                            <p className="text-sm text-muted-foreground italic">"{rev.comment}"</p>
-                          )}
-                          <p className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1.5">
-                            <RiCheckboxCircleLine /> Review submitted — thank you!
-                          </p>
+                          {rev.comment && <p className="text-sm text-muted-foreground italic">"{rev.comment}"</p>}
+                          <p className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1.5"><RiCheckboxCircleLine /> Review submitted!</p>
                         </div>
-                        <button onClick={() => editReview(key)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+                        <button onClick={() => editReview(key)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
                           <RiPencilLine /> Edit
                         </button>
                       </motion.div>
                     ) : (
                       <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                         <label className="text-sm font-semibold mb-3 block">Rate your experience</label>
-
-                        {/* Star Rating */}
                         <div className="flex items-center gap-1.5 mb-1">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <button key={s}
-                              onClick={() => setRating(key, s)}
-                              onMouseEnter={() => setHover(key, s)}
-                              onMouseLeave={() => setHover(key, 0)}
+                          {[1,2,3,4,5].map((s) => (
+                            <button key={s} onClick={() => setRating(key, s)} onMouseEnter={() => setHover(key, s)} onMouseLeave={() => setHover(key, 0)}
                               className="transition-transform hover:scale-110 active:scale-95 focus:outline-none">
-                              <RiStarFill
-                                className={`text-2xl transition-colors duration-100 ${
-                                  s <= activeRating ? "text-amber-400" : "text-muted-foreground/25"
-                                }`} />
+                              <RiStarFill className={`text-2xl transition-colors duration-100 ${s <= activeRating ? "text-amber-400" : "text-muted-foreground/25"}`} />
                             </button>
                           ))}
                           {activeRating > 0 && (
-                            <motion.span
-                              key={activeRating}
-                              initial={{ opacity: 0, x: -4 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              className="ml-2 text-sm font-semibold text-amber-600">
-                              {RATING_LABELS[activeRating]}
-                            </motion.span>
+                            <motion.span key={activeRating} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}
+                              className="ml-2 text-sm font-semibold text-amber-600">{RATING_LABELS[activeRating]}</motion.span>
                           )}
                         </div>
-
-                        {/* Comment */}
-                        <textarea
-                          value={rev.comment}
-                          onChange={(e) => setComment(key, e.target.value)}
-                          placeholder="Share your experience (optional)..."
-                          rows={2}
-                          className="w-full mt-3 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm resize-none"
-                        />
-
-                        <button
-                          onClick={() => submitReview(key, item.product.name)}
-                          className="mt-3 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-50"
-                          disabled={rev.rating === 0}>
+                        <textarea value={rev.comment} onChange={(e) => setComment(key, e.target.value)}
+                          placeholder="Share your experience (optional)..." rows={2}
+                          className="w-full mt-3 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm resize-none" />
+                        <button onClick={() => submitReview(key, item.product.name)} disabled={rev.rating === 0}
+                          className="mt-3 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-50">
                           <RiCheckboxCircleLine /> Submit Review
                         </button>
                       </motion.div>
@@ -517,10 +539,15 @@ function MyReviews() {
   );
 }
 
+// ─── Profile (with Followed Farms) ───────────────────────────────────────────
 function Profile() {
   const { user } = useAuth();
+  const { followedIds, unfollowFarm } = useFollowedFarms();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: user?.name || "", phone: user?.phone || "", address: user?.address || "" });
+  const followedFarms = FARMERS.filter((f) => followedIds.includes(f.id));
+  const navigate = useNavigate();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -529,7 +556,9 @@ function Profile() {
           <RiEditLine /> Edit Profile
         </button>
       </div>
-      <div className="bg-card rounded-2xl p-6 shadow-card">
+
+      {/* Profile Info */}
+      <div className="bg-card rounded-2xl p-6 shadow-card mb-6">
         <div className="flex items-center gap-5 mb-6 pb-6 border-b border-border">
           <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white font-bold text-2xl">{user?.name?.charAt(0)}</div>
           <div>
@@ -547,9 +576,63 @@ function Profile() {
           ))}
         </div>
       </div>
+
+      {/* Followed Farms */}
+      <div className="bg-card rounded-2xl p-6 shadow-card">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <RiHeartFill className="text-red-500" /> Followed Farms
+            {followedFarms.length > 0 && (
+              <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs font-bold flex items-center justify-center">{followedFarms.length}</span>
+            )}
+          </h2>
+          <Link to="/marketplace" className="text-sm text-primary hover:underline font-medium flex items-center gap-1">
+            Explore Farms <RiExternalLinkLine />
+          </Link>
+        </div>
+
+        {followedFarms.length === 0 ? (
+          <div className="text-center py-10 bg-muted/30 rounded-2xl border border-dashed border-border">
+            <RiHeartLine className="text-4xl text-muted-foreground/40 mx-auto mb-3" />
+            <p className="font-medium mb-1">No farms followed yet</p>
+            <p className="text-muted-foreground text-sm mb-4">Visit a farmer's profile and click "Follow this Farm".</p>
+            <button onClick={() => navigate("/marketplace")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
+              Discover Farms
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {followedFarms.map((farm, i) => (
+              <motion.div key={farm.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50">
+                <img src={farm.image} alt={farm.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate">{farm.farm}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1 truncate">
+                    <RiMapPinLine className="text-primary shrink-0" /> {farm.location}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{farm.products}+ products</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => navigate(`/farmer/${farm.id}`)}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
+                    <RiExternalLinkLine /> Visit
+                  </button>
+                  <button onClick={() => { unfollowFarm(farm.id); toast.info(`Unfollowed ${farm.farm}.`); }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl border border-destructive/30 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-colors">
+                    <RiHeartFill className="text-xs" /> Unfollow
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <Modal isOpen={editing} onClose={() => setEditing(false)} title="Edit Profile">
         <div className="space-y-4">
-          {[["Full Name", "name", "text"], ["Phone", "phone", "tel"], ["Address", "address", "text"]].map(([label, key, type]) => (
+          {([["Full Name", "name", "text"], ["Phone", "phone", "tel"], ["Address", "address", "text"]] as const).map(([label, key, type]) => (
             <div key={key}>
               <label className="text-sm font-medium mb-2 block">{label}</label>
               <input type={type} value={form[key as keyof typeof form]} onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -564,6 +647,7 @@ function Profile() {
   );
 }
 
+// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function CustomerDashboard() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">

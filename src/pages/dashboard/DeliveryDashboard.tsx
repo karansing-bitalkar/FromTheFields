@@ -8,6 +8,7 @@ import {
 import DashboardSidebar from "@/components/features/DashboardSidebar";
 import Modal from "@/components/ui/Modal";
 import { ORDERS } from "@/lib/mockData";
+import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 
 const myOrders = ORDERS.filter((o) => o.deliveryPartnerId === "del-001");
@@ -22,29 +23,63 @@ const statusColors: Record<string, string> = {
 };
 
 const NEXT_STATUS: Record<string, string> = {
-  confirmed: "picked",
-  picked: "in-transit",
+  confirmed:    "picked",
+  picked:       "in-transit",
   "in-transit": "delivered",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  picked: "Mark as Picked Up",
+  picked:       "Mark as Picked Up",
   "in-transit": "Mark In Transit",
-  delivered: "Mark Delivered",
+  delivered:    "Mark Delivered",
 };
 
+// Notification messages for each transition
+const STATUS_NOTIFICATIONS: Record<string, { title: string; message: (id: string) => string; type: "delivery" | "order" }> = {
+  picked:       { type: "delivery", title: "Order Picked Up",  message: (id) => `Your order ${id} has been picked up by the delivery partner.` },
+  "in-transit": { type: "delivery", title: "Order In Transit", message: (id) => `Your order ${id} is on the way! Estimated delivery in 45 mins.` },
+  delivered:    { type: "order",    title: "Order Delivered!",  message: (id) => `Your order ${id} has been delivered successfully. Enjoy!` },
+};
+
+function useOrdersWithNotifications() {
+  const [orders, setOrders] = useState(myOrders);
+  const { pushNotification } = useNotifications();
+
+  const updateStatus = (id: string, currentStatus: string) => {
+    const next = NEXT_STATUS[currentStatus];
+    if (!next) return;
+    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: next as any } : o));
+
+    // Push notification to shared context
+    const notifConfig = STATUS_NOTIFICATIONS[next];
+    if (notifConfig) {
+      pushNotification({
+        type: notifConfig.type,
+        title: notifConfig.title,
+        message: notifConfig.message(id),
+        time: "Just now",
+      });
+    }
+
+    toast.success(`Order ${id} updated → ${next.replace("-", " ")}.`);
+  };
+
+  return { orders, updateStatus };
+}
+
 function Overview() {
-  const pending = myOrders.filter((o) => o.status !== "delivered").length;
-  const delivered = myOrders.filter((o) => o.status === "delivered").length;
+  const { orders } = useOrdersWithNotifications();
+  const pending   = orders.filter((o) => o.status !== "delivered").length;
+  const delivered = orders.filter((o) => o.status === "delivered").length;
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-2">Delivery Dashboard</h1>
       <p className="text-muted-foreground mb-8">Manage your assigned deliveries and track routes.</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
         {[
-          { label: "Assigned Orders", value: myOrders.length, icon: RiTruckLine, color: "bg-blue-50 text-blue-600" },
-          { label: "Pending Delivery", value: pending, icon: RiTimeLine, color: "bg-yellow-50 text-yellow-600" },
-          { label: "Delivered Today", value: delivered, icon: RiCheckboxCircleLine, color: "bg-green-50 text-green-600" },
+          { label: "Assigned Orders",  value: orders.length, icon: RiTruckLine,          color: "bg-blue-50 text-blue-600"   },
+          { label: "Pending Delivery", value: pending,        icon: RiTimeLine,           color: "bg-yellow-50 text-yellow-600" },
+          { label: "Delivered Today",  value: delivered,      icon: RiCheckboxCircleLine, color: "bg-green-50 text-green-600"  },
         ].map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -61,7 +96,7 @@ function Overview() {
         <div className="bg-card rounded-2xl p-6 shadow-card">
           <h2 className="font-semibold mb-4">Today's Route Summary</h2>
           <div className="space-y-3">
-            {myOrders.map((order, i) => (
+            {orders.map((order, i) => (
               <div key={order.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
                 <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">{i + 1}</div>
                 <div className="flex-1">
@@ -90,13 +125,7 @@ function Overview() {
 }
 
 function AssignedOrders() {
-  const [orders, setOrders] = useState(myOrders);
-  const updateStatus = (id: string, currentStatus: string) => {
-    const next = NEXT_STATUS[currentStatus];
-    if (!next) return;
-    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: next as any } : o));
-    toast.success(`Order ${id} → ${next.replace("-", " ")}.`);
-  };
+  const { orders, updateStatus } = useOrdersWithNotifications();
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-6">Assigned Orders</h1>
@@ -110,7 +139,9 @@ function AssignedOrders() {
                   <p className="font-bold text-lg font-serif">{order.id}</p>
                   <p className="text-muted-foreground text-sm">{order.date} · ${order.total.toFixed(2)}</p>
                 </div>
-                <span className={`self-start sm:self-auto px-3 py-1.5 rounded-full text-xs font-semibold ${statusColors[order.status]}`}>{order.status.replace("-", " ")}</span>
+                <span className={`self-start sm:self-auto px-3 py-1.5 rounded-full text-xs font-semibold ${statusColors[order.status]}`}>
+                  {order.status.replace("-", " ")}
+                </span>
               </div>
               <div className="bg-muted/30 rounded-xl p-3 mb-4">
                 <p className="text-sm font-medium flex items-center gap-1.5 mb-1"><RiMapPinLine className="text-primary" /> {order.deliveryAddress}</p>
@@ -126,13 +157,12 @@ function AssignedOrders() {
                   </div>
                 ))}
               </div>
-              {next && (
+              {next ? (
                 <button onClick={() => updateStatus(order.id, order.status)}
                   className="w-full py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
                   {STATUS_LABEL[next]}
                 </button>
-              )}
-              {order.status === "delivered" && (
+              ) : order.status === "delivered" && (
                 <div className="text-center text-sm text-green-600 font-medium flex items-center justify-center gap-1 py-1">
                   <RiCheckboxCircleLine className="text-base" /> Delivered Successfully
                 </div>
@@ -146,14 +176,8 @@ function AssignedOrders() {
 }
 
 function DeliveryStatus() {
-  const [orders, setOrders] = useState(myOrders);
+  const { orders, updateStatus } = useOrdersWithNotifications();
   const statuses = ["confirmed", "picked", "in-transit", "delivered"];
-  const updateStatus = (id: string, currentStatus: string) => {
-    const next = NEXT_STATUS[currentStatus];
-    if (!next) return;
-    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: next as any } : o));
-    toast.success(`Updated to: ${next.replace("-", " ")}`);
-  };
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-6">Delivery Status</h1>
@@ -194,6 +218,7 @@ function DeliveryStatus() {
 }
 
 function RouteInfo() {
+  const { orders } = useOrdersWithNotifications();
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-6">Route Information</h1>
@@ -201,11 +226,11 @@ function RouteInfo() {
         <div className="bg-card rounded-2xl p-5 shadow-card">
           <h2 className="font-semibold mb-4 flex items-center gap-2"><RiRouteLine className="text-primary" /> Today's Route</h2>
           <div className="space-y-4">
-            {myOrders.map((order, i) => (
+            {orders.map((order, i) => (
               <div key={order.id} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">{i + 1}</div>
-                  {i < myOrders.length - 1 && <div className="w-0.5 h-8 bg-border mt-1" />}
+                  {i < orders.length - 1 && <div className="w-0.5 h-8 bg-border mt-1" />}
                 </div>
                 <div>
                   <p className="font-medium text-sm">{order.customerName}</p>
@@ -219,7 +244,7 @@ function RouteInfo() {
         <div className="bg-card rounded-2xl p-5 shadow-card">
           <h2 className="font-semibold mb-4">Route Stats</h2>
           <div className="space-y-3">
-            {[["Total Stops", myOrders.length], ["Est. Distance", "18.4 miles"], ["Est. Duration", "2h 15min"], ["Deliveries Done", myOrders.filter(o => o.status === "delivered").length]].map(([label, val]) => (
+            {[["Total Stops", orders.length], ["Est. Distance", "18.4 miles"], ["Est. Duration", "2h 15min"], ["Deliveries Done", orders.filter((o) => o.status === "delivered").length]].map(([label, val]) => (
               <div key={label} className="flex justify-between p-3 rounded-xl bg-muted/30 text-sm">
                 <span className="text-muted-foreground">{label}</span>
                 <span className="font-semibold">{val}</span>
@@ -240,6 +265,7 @@ function RouteInfo() {
 }
 
 function Earnings() {
+  const { orders } = useOrdersWithNotifications();
   return (
     <div>
       <h1 className="font-serif text-3xl font-bold mb-6">Earnings</h1>
@@ -254,7 +280,7 @@ function Earnings() {
       <div className="bg-card rounded-2xl p-6 shadow-card">
         <h2 className="font-semibold mb-4">Per Delivery Breakdown</h2>
         <div className="space-y-3">
-          {myOrders.map((order) => (
+          {orders.map((order) => (
             <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div>
                 <p className="font-medium text-sm">{order.id}</p>
@@ -262,7 +288,7 @@ function Earnings() {
               </div>
               <div className="text-right">
                 <p className="font-bold text-primary">$4.50</p>
-                <span className={`text-xs font-medium capitalize ${statusColors[order.status]?.split(" ")[1] || "text-muted-foreground"}`}>{order.status}</span>
+                <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${statusColors[order.status]}`}>{order.status}</span>
               </div>
             </div>
           ))}
@@ -272,7 +298,7 @@ function Earnings() {
   );
 }
 
-function Profile() {
+function DeliveryProfile() {
   const [editing, setEditing] = useState(false);
   return (
     <div>
@@ -311,7 +337,8 @@ function Profile() {
               <input defaultValue={val} className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
             </div>
           ))}
-          <button onClick={() => { setEditing(false); toast.success("Profile updated!"); }} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all">Save Changes</button>
+          <button onClick={() => { setEditing(false); toast.success("Profile updated!"); }}
+            className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all">Save Changes</button>
         </div>
       </Modal>
     </div>
@@ -326,11 +353,11 @@ export default function DeliveryDashboard() {
         <div className="p-6 md:p-8 max-w-4xl mx-auto">
           <Routes>
             <Route index element={<Overview />} />
-            <Route path="orders" element={<AssignedOrders />} />
-            <Route path="status" element={<DeliveryStatus />} />
-            <Route path="routes" element={<RouteInfo />} />
+            <Route path="orders"   element={<AssignedOrders />} />
+            <Route path="status"   element={<DeliveryStatus />} />
+            <Route path="routes"   element={<RouteInfo />} />
             <Route path="earnings" element={<Earnings />} />
-            <Route path="profile" element={<Profile />} />
+            <Route path="profile"  element={<DeliveryProfile />} />
           </Routes>
         </div>
       </main>

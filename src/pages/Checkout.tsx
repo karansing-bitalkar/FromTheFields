@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   RiArrowLeftLine, RiArrowRightLine, RiCheckboxCircleLine,
@@ -10,43 +10,44 @@ import {
 import PageLayout from "@/components/layout/PageLayout";
 import { PRODUCTS } from "@/lib/mockData";
 import { toast } from "sonner";
+import type { CartItem } from "@/hooks/useCart";
 
 const STEPS = [
-  { key: "slot", label: "Delivery Slot", icon: RiTimeLine },
-  { key: "payment", label: "Payment", icon: RiMoneyDollarCircleLine },
-  { key: "review", label: "Review Order", icon: RiShoppingBagLine },
-  { key: "confirm", label: "Confirmation", icon: RiCheckboxCircleLine },
+  { key: "slot",    label: "Delivery Slot", icon: RiTimeLine },
+  { key: "payment", label: "Payment",       icon: RiMoneyDollarCircleLine },
+  { key: "review",  label: "Review Order",  icon: RiShoppingBagLine },
+  { key: "confirm", label: "Confirmation",  icon: RiCheckboxCircleLine },
 ];
 
 const SLOTS = [
-  { id: "morning", label: "Morning", time: "7:00 AM – 11:00 AM", note: "Best for fresh harvest" },
-  { id: "afternoon", label: "Afternoon", time: "12:00 PM – 4:00 PM", note: "Most popular slot" },
-  { id: "evening", label: "Evening", time: "5:00 PM – 8:00 PM", note: "After-work delivery" },
+  { id: "morning",   label: "Morning",   time: "7:00 AM – 11:00 AM", note: "Best for fresh harvest" },
+  { id: "afternoon", label: "Afternoon", time: "12:00 PM – 4:00 PM", note: "Most popular slot"      },
+  { id: "evening",   label: "Evening",   time: "5:00 PM – 8:00 PM",  note: "After-work delivery"    },
 ];
 
 const PAYMENT_METHODS = [
-  { id: "upi", label: "UPI", icon: RiSmartphoneLine, desc: "Pay via any UPI app" },
-  { id: "card", label: "Card", icon: RiBankCardLine, desc: "Visa, Mastercard, Amex" },
-  { id: "cod", label: "Cash on Delivery", icon: RiCashLine, desc: "Pay when you receive" },
+  { id: "upi",  label: "UPI",              icon: RiSmartphoneLine, desc: "Pay via any UPI app"     },
+  { id: "card", label: "Card",             icon: RiBankCardLine,   desc: "Visa, Mastercard, Amex"  },
+  { id: "cod",  label: "Cash on Delivery", icon: RiCashLine,       desc: "Pay when you receive"    },
 ];
 
-const CART_ITEMS = PRODUCTS.slice(0, 3).map((p) => ({ product: p, quantity: 1 }));
-const subtotal = CART_ITEMS.reduce((a, i) => a + i.product.price * i.quantity, 0);
-const delivery = 0;
-const total = subtotal + delivery;
+// Default cart items (used when navigated to directly without cart state)
+const DEFAULT_CART: CartItem[] = PRODUCTS.slice(0, 3).map((p) => ({ product: p, quantity: 1 }));
 
 function StepIndicator({ currentStep }: { currentStep: number }) {
   return (
     <div className="flex items-center justify-center gap-0 mb-10 flex-wrap">
       {STEPS.map((step, i) => {
         const Icon = step.icon;
-        const done = i < currentStep;
+        const done   = i < currentStep;
         const active = i === currentStep;
         return (
           <div key={step.key} className="flex items-center">
             <div className="flex flex-col items-center">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                done ? "bg-primary border-primary text-white" : active ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+                done   ? "bg-primary border-primary text-white"
+                : active ? "border-primary text-primary bg-primary/10"
+                : "border-border text-muted-foreground"
               }`}>
                 {done ? <RiCheckboxCircleLine className="text-lg" /> : <Icon className="text-base" />}
               </div>
@@ -75,9 +76,7 @@ function SlotStep({ selected, onSelect }: { selected: string; onSelect: (id: str
             className={`w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-4 ${
               selected === slot.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/30"
             }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              selected === slot.id ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-            }`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${selected === slot.id ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
               <RiTimeLine className="text-xl" />
             </div>
             <div className="flex-1">
@@ -101,10 +100,10 @@ function SlotStep({ selected, onSelect }: { selected: string; onSelect: (id: str
 }
 
 function PaymentStep({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
-  const [upiId, setUpiId] = useState("");
+  const [upiId, setUpiId]   = useState("");
   const [cardNum, setCardNum] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
+  const [expiry, setExpiry]   = useState("");
+  const [cvv, setCvv]         = useState("");
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -128,11 +127,9 @@ function PaymentStep({ selected, onSelect }: { selected: string; onSelect: (id: 
                 </div>
                 {selected === method.id && <RiCheckboxCircleLine className="text-primary text-xl" />}
               </button>
-              {/* Inline form */}
               <AnimatePresence>
                 {selected === method.id && method.id === "upi" && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden">
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <div className="border border-t-0 border-border rounded-b-2xl p-4 bg-card">
                       <label className="text-sm font-medium mb-2 block">UPI ID</label>
                       <input value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="yourname@upi"
@@ -141,8 +138,7 @@ function PaymentStep({ selected, onSelect }: { selected: string; onSelect: (id: 
                   </motion.div>
                 )}
                 {selected === method.id && method.id === "card" && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden">
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <div className="border border-t-0 border-border rounded-b-2xl p-4 bg-card space-y-3">
                       <div>
                         <label className="text-sm font-medium mb-2 block">Card Number</label>
@@ -165,8 +161,7 @@ function PaymentStep({ selected, onSelect }: { selected: string; onSelect: (id: 
                   </motion.div>
                 )}
                 {selected === method.id && method.id === "cod" && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden">
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <div className="border border-t-0 border-border rounded-b-2xl p-4 bg-card">
                       <p className="text-sm text-muted-foreground flex items-center gap-2">
                         <RiShieldCheckLine className="text-primary" /> Pay in cash when your order arrives at your door.
@@ -183,19 +178,20 @@ function PaymentStep({ selected, onSelect }: { selected: string; onSelect: (id: 
   );
 }
 
-function ReviewStep({ slot, payment }: { slot: string; payment: string }) {
+function ReviewStep({ slot, payment, cartItems }: { slot: string; payment: string; cartItems: CartItem[] }) {
   const slotObj = SLOTS.find((s) => s.id === slot);
-  const payObj = PAYMENT_METHODS.find((p) => p.id === payment);
+  const payObj  = PAYMENT_METHODS.find((p) => p.id === payment);
+  const subtotal = cartItems.reduce((a, i) => a + i.product.price * i.quantity, 0);
+
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
       <h2 className="font-serif text-2xl font-bold mb-2">Review Your Order</h2>
-      <p className="text-muted-foreground text-sm mb-6">Please check all details before placing your order.</p>
+      <p className="text-muted-foreground text-sm mb-6">Check all details before placing your order.</p>
 
-      {/* Items */}
       <div className="bg-card rounded-2xl shadow-card p-5 mb-4">
-        <h3 className="font-semibold mb-4">Order Items</h3>
+        <h3 className="font-semibold mb-4">Order Items ({cartItems.length})</h3>
         <div className="space-y-3">
-          {CART_ITEMS.map((item) => (
+          {cartItems.map((item) => (
             <div key={item.product.id} className="flex items-center gap-3">
               <img src={item.product.image} alt={item.product.name} className="w-12 h-12 rounded-xl object-cover" />
               <div className="flex-1">
@@ -213,12 +209,11 @@ function ReviewStep({ slot, payment }: { slot: string; payment: string }) {
           <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="text-primary font-medium">Free</span></div>
           <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
-            <span>Total</span><span className="text-primary">${total.toFixed(2)}</span>
+            <span>Total</span><span className="text-primary">${subtotal.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
-      {/* Delivery & Payment Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-card rounded-2xl p-4 shadow-card">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Delivery Slot</p>
@@ -245,7 +240,7 @@ function ReviewStep({ slot, payment }: { slot: string; payment: string }) {
   );
 }
 
-function ConfirmStep({ orderId, slot }: { orderId: string; slot: string }) {
+function ConfirmStep({ orderId, slot, total }: { orderId: string; slot: string; total: number }) {
   const slotObj = SLOTS.find((s) => s.id === slot);
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
@@ -258,9 +253,9 @@ function ConfirmStep({ orderId, slot }: { orderId: string; slot: string }) {
       <div className="bg-card rounded-2xl shadow-card p-6 text-left mb-6 max-w-sm mx-auto">
         <div className="space-y-3">
           {[
-            ["Order ID", orderId],
-            ["Delivery Slot", slotObj ? `${slotObj.label} · ${slotObj.time}` : "—"],
-            ["Total Paid", `$${total.toFixed(2)}`],
+            ["Order ID",          orderId],
+            ["Delivery Slot",     slotObj ? `${slotObj.label} · ${slotObj.time}` : "—"],
+            ["Total Paid",        `$${total.toFixed(2)}`],
             ["Estimated Delivery", "Today by " + (slot === "morning" ? "11:00 AM" : slot === "afternoon" ? "4:00 PM" : "8:00 PM")],
           ].map(([label, val]) => (
             <div key={label} className="flex justify-between text-sm">
@@ -286,11 +281,19 @@ function ConfirmStep({ orderId, slot }: { orderId: string; slot: string }) {
 }
 
 export default function Checkout() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  // Read cart items passed from Customer Dashboard Cart via route state
+  const passedItems = (location.state as { cartItems?: CartItem[] } | null)?.cartItems;
+  const cartItems   = passedItems && passedItems.length > 0 ? passedItems : DEFAULT_CART;
+
+  const subtotal = cartItems.reduce((a, i) => a + i.product.price * i.quantity, 0);
+
   const [step, setStep] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState("morning");
   const [selectedPayment, setSelectedPayment] = useState("upi");
-  const orderId = "ORD-" + Math.floor(Math.random() * 900 + 100);
+  const [orderId] = useState(() => "ORD-" + Math.floor(Math.random() * 9000 + 1000));
 
   const canProceed = () => {
     if (step === 0) return !!selectedSlot;
@@ -300,9 +303,7 @@ export default function Checkout() {
 
   const handleNext = () => {
     if (!canProceed()) { toast.error("Please make a selection before continuing."); return; }
-    if (step === 2) {
-      toast.success("Order placed successfully!");
-    }
+    if (step === 2) toast.success("Order placed successfully!");
     setStep((s) => Math.min(s + 1, 3));
   };
 
@@ -323,10 +324,10 @@ export default function Checkout() {
                 <StepIndicator currentStep={step} />
 
                 <AnimatePresence mode="wait">
-                  {step === 0 && <SlotStep key="slot" selected={selectedSlot} onSelect={setSelectedSlot} />}
+                  {step === 0 && <SlotStep    key="slot"    selected={selectedSlot}    onSelect={setSelectedSlot} />}
                   {step === 1 && <PaymentStep key="payment" selected={selectedPayment} onSelect={setSelectedPayment} />}
-                  {step === 2 && <ReviewStep key="review" slot={selectedSlot} payment={selectedPayment} />}
-                  {step === 3 && <ConfirmStep key="confirm" orderId={orderId} slot={selectedSlot} />}
+                  {step === 2 && <ReviewStep  key="review"  slot={selectedSlot} payment={selectedPayment} cartItems={cartItems} />}
+                  {step === 3 && <ConfirmStep key="confirm" orderId={orderId} slot={selectedSlot} total={subtotal} />}
                 </AnimatePresence>
 
                 {step < 3 && (
@@ -342,9 +343,12 @@ export default function Checkout() {
             {step < 3 && (
               <div className="lg:col-span-1">
                 <div className="bg-card rounded-2xl shadow-card p-5 sticky top-24">
-                  <h3 className="font-semibold mb-4">Order Summary</h3>
+                  <h3 className="font-semibold mb-4">
+                    Order Summary
+                    {passedItems && <span className="ml-2 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-normal">from cart</span>}
+                  </h3>
                   <div className="space-y-3 mb-4">
-                    {CART_ITEMS.map((item) => (
+                    {cartItems.map((item) => (
                       <div key={item.product.id} className="flex items-center gap-3">
                         <img src={item.product.image} alt={item.product.name} className="w-10 h-10 rounded-xl object-cover" />
                         <div className="flex-1 min-w-0">
@@ -359,12 +363,13 @@ export default function Checkout() {
                     <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="text-primary font-medium">Free</span></div>
                     <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
-                      <span>Total</span><span className="text-primary">${total.toFixed(2)}</span>
+                      <span>Total</span><span className="text-primary">${subtotal.toFixed(2)}</span>
                     </div>
                   </div>
                   <div className="mt-4 space-y-2">
                     {[[RiLeafLine, "Farm-fresh produce"], [RiShieldCheckLine, "Secure checkout"], [RiTruckLine, "Free delivery"]].map(([Icon, text], i) => (
                       <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {/* @ts-expect-error dynamic icon */}
                         <Icon className="text-primary shrink-0" />
                         {text as string}
                       </div>

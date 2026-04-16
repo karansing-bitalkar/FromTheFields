@@ -1,5 +1,4 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   RiMapPinLine, RiArrowLeftLine, RiLeafLine, RiShieldCheckLine,
@@ -8,6 +7,7 @@ import {
 } from "react-icons/ri";
 import PageLayout from "@/components/layout/PageLayout";
 import { FARMERS, PRODUCTS } from "@/lib/mockData";
+import { useFollowedFarms } from "@/hooks/useFollowedFarms";
 import { toast } from "sonner";
 
 export default function FarmerProfile() {
@@ -15,7 +15,8 @@ export default function FarmerProfile() {
   const navigate = useNavigate();
   const farmer = FARMERS.find((f) => f.id === id) ?? FARMERS[0];
   const farmerProducts = PRODUCTS.filter((p) => p.farmerId === farmer.id);
-  const [followed, setFollowed] = useState(false);
+  const { isFollowing, followFarm, unfollowFarm } = useFollowedFarms();
+  const followed = isFollowing(farmer.id);
 
   const totalReviews = farmerProducts.reduce((a, p) => a + p.reviews, 0);
   const avgRating = farmerProducts.length > 0
@@ -26,8 +27,13 @@ export default function FarmerProfile() {
   const yearsOnPlatform = new Date().getFullYear() - joinYear;
 
   const handleFollow = () => {
-    setFollowed((f) => !f);
-    toast.success(followed ? `Unfollowed ${farmer.farm}` : `Now following ${farmer.farm}! You'll get updates on new products.`);
+    if (followed) {
+      unfollowFarm(farmer.id);
+      toast.info(`Unfollowed ${farmer.farm}`);
+    } else {
+      followFarm(farmer.id);
+      toast.success(`Now following ${farmer.farm}! You'll get updates on new products.`);
+    }
   };
 
   return (
