@@ -8,6 +8,7 @@ import {
   RiDashboardLine, RiGroupLine, RiCheckboxCircleLine, RiBarChartLine,
   RiTruckLine, RiRouteLine, RiHeartLine, RiBellLine,
   RiBox3Line, RiLeafLine, RiShieldCheckLine, RiBarChart2Line,
+  RiStarLine,
 } from "react-icons/ri";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/lib/auth";
@@ -30,6 +31,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
     { label: "Wishlist",       href: "/dashboard/customer/wishlist",       icon: RiHeartLine, badge: "wishlist" },
     { label: "Subscriptions",  href: "/dashboard/customer/subscriptions",  icon: RiCalendarCheckLine },
     { label: "Notifications",  href: "/dashboard/customer/notifications",  icon: RiBellLine, badge: "notifications" },
+    { label: "My Reviews",     href: "/dashboard/customer/reviews",        icon: RiStarLine },
     { label: "Profile",        href: "/dashboard/customer/profile",        icon: RiUserLine },
   ],
   farmer: [

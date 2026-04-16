@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Routes, Route, useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   RiShoppingBagLine, RiHeartLine, RiCalendarCheckLine, RiUserLine,
   RiTruckLine, RiCheckLine, RiDeleteBinLine, RiEditLine, RiAddLine,
   RiSubtractLine, RiMapPinLine, RiBellLine, RiShoppingCartLine,
-  RiLeafLine, RiStarFill, RiTimeLine,
+  RiLeafLine, RiStarFill, RiTimeLine, RiStarLine, RiCheckboxCircleLine,
+  RiPencilLine,
 } from "react-icons/ri";
 import DashboardSidebar from "@/components/features/DashboardSidebar";
 import Modal from "@/components/ui/Modal";
@@ -344,6 +345,178 @@ function Notifications() {
   );
 }
 
+function MyReviews() {
+  // Get delivered orders for the demo customer
+  const deliveredOrders = ORDERS.filter(
+    (o) => o.customerId === "cust-001" && o.status === "delivered"
+  );
+
+  // Collect unique products from delivered orders
+  const reviewableItems = deliveredOrders.flatMap((order) =>
+    order.items.map((item) => ({ product: item.product, orderId: order.id, orderDate: order.date }))
+  );
+
+  // State: { [productId]: { rating, comment, submitted } }
+  const [reviews, setReviews] = useState<Record<string, { rating: number; comment: string; submitted: boolean; hover: number }>>(
+    () => Object.fromEntries(reviewableItems.map((i) => [i.product.id + i.orderId, { rating: 0, comment: "", submitted: false, hover: 0 }]))
+  );
+
+  const setRating = (key: string, rating: number) =>
+    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], rating } }));
+
+  const setComment = (key: string, comment: string) =>
+    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], comment } }));
+
+  const setHover = (key: string, hover: number) =>
+    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], hover } }));
+
+  const submitReview = (key: string, productName: string) => {
+    if (reviews[key].rating === 0) {
+      toast.error("Please select a star rating before submitting.");
+      return;
+    }
+    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], submitted: true } }));
+    toast.success(`Review submitted for ${productName}!`);
+  };
+
+  const editReview = (key: string) =>
+    setReviews((prev) => ({ ...prev, [key]: { ...prev[key], submitted: false } }));
+
+  const RATING_LABELS = ["", "Poor", "Fair", "Good", "Great", "Excellent"];
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="font-serif text-3xl font-bold">My Reviews</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Rate products from your delivered orders — your feedback helps other customers!
+        </p>
+      </div>
+
+      {reviewableItems.length === 0 ? (
+        <div className="text-center py-20 bg-card rounded-2xl shadow-card">
+          <RiStarLine className="text-5xl mx-auto mb-4 text-muted-foreground/40" />
+          <h3 className="font-semibold text-lg mb-2">No delivered orders yet</h3>
+          <p className="text-muted-foreground text-sm mb-5">Reviews will appear here once your orders are delivered.</p>
+          <Link to="/marketplace"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all">
+            Browse Marketplace
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {reviewableItems.map((item) => {
+            const key = item.product.id + item.orderId;
+            const rev = reviews[key];
+            const activeRating = rev.hover > 0 ? rev.hover : rev.rating;
+
+            return (
+              <motion.div key={key}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-2xl shadow-card border border-border overflow-hidden">
+                <div className="flex items-center gap-4 p-5 border-b border-border/60">
+                  <img src={item.product.image} alt={item.product.name}
+                    className="w-16 h-16 rounded-2xl object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <h3 className="font-semibold">{item.product.name}</h3>
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{item.product.category}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">by {item.product.farmer}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                      <RiCheckboxCircleLine className="text-green-500" />
+                      Delivered · Order {item.orderId} · {item.orderDate}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-primary text-lg">${item.product.price.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">/ {item.product.unit}</p>
+                  </div>
+                </div>
+
+                <div className="p-5">
+                  <AnimatePresence mode="wait">
+                    {rev.submitted ? (
+                      <motion.div key="submitted"
+                        initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                          <div className="flex items-center gap-1 mb-1">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <RiStarFill key={s}
+                                className={`text-xl ${s <= rev.rating ? "text-amber-400" : "text-muted-foreground/20"}`} />
+                            ))}
+                            <span className="ml-2 text-sm font-semibold text-amber-600">{RATING_LABELS[rev.rating]}</span>
+                          </div>
+                          {rev.comment && (
+                            <p className="text-sm text-muted-foreground italic">"{rev.comment}"</p>
+                          )}
+                          <p className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1.5">
+                            <RiCheckboxCircleLine /> Review submitted — thank you!
+                          </p>
+                        </div>
+                        <button onClick={() => editReview(key)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+                          <RiPencilLine /> Edit
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <label className="text-sm font-semibold mb-3 block">Rate your experience</label>
+
+                        {/* Star Rating */}
+                        <div className="flex items-center gap-1.5 mb-1">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <button key={s}
+                              onClick={() => setRating(key, s)}
+                              onMouseEnter={() => setHover(key, s)}
+                              onMouseLeave={() => setHover(key, 0)}
+                              className="transition-transform hover:scale-110 active:scale-95 focus:outline-none">
+                              <RiStarFill
+                                className={`text-2xl transition-colors duration-100 ${
+                                  s <= activeRating ? "text-amber-400" : "text-muted-foreground/25"
+                                }`} />
+                            </button>
+                          ))}
+                          {activeRating > 0 && (
+                            <motion.span
+                              key={activeRating}
+                              initial={{ opacity: 0, x: -4 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="ml-2 text-sm font-semibold text-amber-600">
+                              {RATING_LABELS[activeRating]}
+                            </motion.span>
+                          )}
+                        </div>
+
+                        {/* Comment */}
+                        <textarea
+                          value={rev.comment}
+                          onChange={(e) => setComment(key, e.target.value)}
+                          placeholder="Share your experience (optional)..."
+                          rows={2}
+                          className="w-full mt-3 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm resize-none"
+                        />
+
+                        <button
+                          onClick={() => submitReview(key, item.product.name)}
+                          className="mt-3 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-50"
+                          disabled={rev.rating === 0}>
+                          <RiCheckboxCircleLine /> Submit Review
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Profile() {
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -430,6 +603,7 @@ export default function CustomerDashboard() {
                 </div>
               </div>
             } />
+            <Route path="reviews" element={<MyReviews />} />
             <Route path="profile" element={<Profile />} />
           </Routes>
         </div>
