@@ -18,6 +18,7 @@ import {
 } from "react-icons/ri";
 import PageLayout from "@/components/layout/PageLayout";
 import { PRODUCTS, FARMERS } from "@/lib/mockData";
+import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
 const MOCK_REVIEWS = [
@@ -70,6 +71,7 @@ export default function ProductDetail() {
   const [reviewForm, setReviewForm] = useState({ name: "", rating: 5, comment: "" });
   const [reviews, setReviews] = useState(MOCK_REVIEWS);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const { addItem } = useCart();
 
   const finalPrice = product.discount
     ? product.price * (1 - product.discount / 100)
@@ -78,7 +80,11 @@ export default function ProductDetail() {
   const avgRating = (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1);
 
   const handleAddToCart = () => {
-    toast.success(`${qty}× ${product.name} added to cart!`);
+    addItem(product, qty);
+    toast.success(`${qty}× ${product.name} added to cart!`, {
+      description: "Item saved to your cart.",
+      action: { label: "View Cart", onClick: () => navigate("/dashboard/customer/cart") },
+    });
   };
 
   const handleSubmitReview = (e: React.FormEvent) => {

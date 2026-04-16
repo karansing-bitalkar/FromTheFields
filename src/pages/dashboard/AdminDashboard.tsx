@@ -5,7 +5,9 @@ import {
   RiGroupLine, RiShoppingBagLine, RiMoneyDollarCircleLine,
   RiCheckboxCircleLine, RiCloseCircleLine, RiEditLine, RiDeleteBinLine,
   RiAddLine, RiArrowLeftSLine, RiArrowRightSLine,
+  RiAlertLine, RiMegaphoneLine, RiLeafLine, RiSendPlaneLine,
 } from "react-icons/ri";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -13,7 +15,7 @@ import {
 import DashboardSidebar from "@/components/features/DashboardSidebar";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { ORDERS, FARMERS } from "@/lib/mockData";
+import { ORDERS, FARMERS, PRODUCTS } from "@/lib/mockData";
 import { toast } from "sonner";
 import type { Farmer } from "@/types";
 
@@ -56,12 +58,14 @@ const CATEGORY_DATA = [
 const CHART_COLORS = { primary: "#16a34a", secondary: "#f59e0b", accent: "#3b82f6", muted: "#e5e7eb" };
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
+const LOW_STOCK_PRODUCTS = PRODUCTS.filter((p) => p.stock < 20);
+
 function Overview() {
   const stats = [
     { label: "Total Users",    value: "1,284",                              icon: RiGroupLine,             color: "bg-blue-50 text-blue-600",   trend: "+12%" },
     { label: "Total Orders",   value: ORDERS.length,                        icon: RiShoppingBagLine,       color: "bg-green-50 text-green-600", trend: "+8%"  },
     { label: "Revenue (Apr)",  value: "$24,800",                            icon: RiMoneyDollarCircleLine, color: "bg-yellow-50 text-yellow-600", trend: "+22%" },
-    { label: "Active Farmers", value: FARMERS.filter(f => f.approved).length, icon: RiCheckboxCircleLine, color: "bg-purple-50 text-purple-600", trend: "+5%"  },
+    { label: "Total Products", value: PRODUCTS.length,                      icon: RiLeafLine,              color: "bg-purple-50 text-purple-600", trend: "+5%"  },
   ];
   return (
     <div>
@@ -83,7 +87,7 @@ function Overview() {
           );
         })}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-card rounded-2xl p-6 shadow-card">
           <h2 className="font-semibold mb-4">Recent Orders</h2>
           <div className="space-y-2">
@@ -109,6 +113,72 @@ function Overview() {
           </div>
         </div>
       </div>
+
+      {/* Low Stock Alerts */}
+      <div className="bg-card rounded-2xl p-6 shadow-card">
+        <div className="flex items-center gap-2 mb-5">
+          <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center">
+            <RiAlertLine className="text-orange-500 text-base" />
+          </div>
+          <div>
+            <h2 className="font-semibold">Low Stock Alerts</h2>
+            <p className="text-xs text-muted-foreground">Products with fewer than 20 units remaining</p>
+          </div>
+          {LOW_STOCK_PRODUCTS.length > 0 && (
+            <span className="ml-auto px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600">
+              {LOW_STOCK_PRODUCTS.length} alerts
+            </span>
+          )}
+        </div>
+        {LOW_STOCK_PRODUCTS.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            <RiCheckboxCircleLine className="text-3xl text-green-400 mx-auto mb-2" />
+            All products are well-stocked!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {LOW_STOCK_PRODUCTS.map((p) => {
+              const farmer = FARMERS.find((f) => f.id === p.farmerId);
+              return (
+                <LowStockRow key={p.id} product={p} farmer={farmer} />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LowStockRow({ product, farmer }: { product: typeof PRODUCTS[0]; farmer?: typeof FARMERS[0] }) {
+  const [notified, setNotified] = useState(false);
+  const handleNotify = () => {
+    setNotified(true);
+    toast.success(`Notification sent to ${farmer?.name ?? "farmer"} for restocking "${product.name}"!`, { duration: 4000 });
+  };
+  return (
+    <div className="flex items-center gap-4 p-3.5 rounded-xl bg-orange-50 border border-orange-200">
+      <img src={product.image} alt={product.name} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm truncate">{product.name}</p>
+        <p className="text-xs text-muted-foreground">
+          Farmer: <span className="font-medium text-foreground">{farmer?.name ?? "Unknown"}</span>
+          {" · "}{farmer?.farm}
+        </p>
+      </div>
+      <div className="text-center shrink-0">
+        <p className={`text-lg font-bold ${product.stock === 0 ? "text-red-600" : "text-orange-500"}`}>{product.stock}</p>
+        <p className="text-xs text-muted-foreground">{product.unit}s left</p>
+      </div>
+      <button
+        onClick={handleNotify}
+        disabled={notified}
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+          notified ? "bg-green-100 text-green-700 cursor-default" : "bg-orange-500 text-white hover:bg-orange-600"
+        }`}
+      >
+        {notified ? <><RiCheckboxCircleLine /> Notified</> : <><RiMegaphoneLine /> Notify Farmer</>}
+      </button>
     </div>
   );
 }
@@ -401,6 +471,233 @@ function Analytics() {
   );
 }
 
+// ─── Send Announcement ────────────────────────────────────────────────────────
+const ROLE_TARGETS = ["All Users", "Customers", "Farmers", "Delivery Partners"];
+
+function SendAnnouncement() {
+  const { pushNotification } = useNotifications();
+  const [form, setForm] = useState({ message: "", target: "All Users", title: "" });
+  const [sent, setSent] = useState<{ title: string; target: string; time: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim() || !form.message.trim()) {
+      toast.error("Please fill in the title and message.");
+      return;
+    }
+    setLoading(true);
+    setTimeout(() => {
+      pushNotification({
+        type: "order",
+        title: `📢 ${form.title}`,
+        message: form.message,
+        time: "Just now",
+      });
+      setSent((prev) => [{ title: form.title, target: form.target, time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) }, ...prev]);
+      toast.success(`Announcement sent to ${form.target}!`);
+      setForm({ message: "", target: "All Users", title: "" });
+      setLoading(false);
+    }, 600);
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <RiMegaphoneLine className="text-primary text-xl" />
+        </div>
+        <div>
+          <h1 className="font-serif text-3xl font-bold">Send Announcement</h1>
+          <p className="text-muted-foreground text-sm">Push a notification to the Navbar bell and Notifications tab of all active users.</p>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl shadow-card p-6 mb-6">
+        <form onSubmit={handleSend} className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Target Audience</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {ROLE_TARGETS.map((role) => (
+                <button key={role} type="button" onClick={() => setForm({ ...form, target: role })}
+                  className={`py-2.5 px-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    form.target === role ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"
+                  }`}>
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Announcement Title <span className="text-destructive">*</span></label>
+            <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g., Platform Maintenance Notice"
+              className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Message <span className="text-destructive">*</span></label>
+            <textarea rows={4} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
+              placeholder="Write your announcement message here..."
+              className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm resize-none" />
+            <p className="text-xs text-muted-foreground mt-1">{form.message.length} / 200 characters</p>
+          </div>
+          <button type="submit" disabled={loading}
+            className="w-full py-3.5 rounded-xl bg-primary text-white font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-60 text-sm">
+            <RiSendPlaneLine /> {loading ? "Sending..." : `Send to ${form.target}`}
+          </button>
+        </form>
+      </div>
+
+      {sent.length > 0 && (
+        <div className="bg-card rounded-2xl shadow-card p-6">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <RiCheckboxCircleLine className="text-green-500" /> Sent Announcements
+          </h2>
+          <div className="space-y-3">
+            {sent.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
+                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                  <RiMegaphoneLine className="text-green-600 text-sm" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{s.title}</p>
+                  <p className="text-xs text-muted-foreground">Sent to {s.target}</p>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">{s.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Product Management ───────────────────────────────────────────────────────
+function ProductManagement() {
+  const [products, setProducts] = useState(PRODUCTS);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const filtered = products.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.category.toLowerCase().includes(search.toLowerCase())
+  );
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleRemove = (id: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Product removed.");
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="font-serif text-3xl font-bold">Product Management</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Total: <span className="font-semibold text-foreground">{products.length} products</span> across {[...new Set(products.map(p => p.category))].length} categories
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search products..."
+            className="px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 w-48" />
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Total Products",  value: products.length,                          color: "text-primary"   },
+          { label: "Organic",          value: products.filter(p => p.organic).length,  color: "text-green-600" },
+          { label: "Low Stock (<20)",  value: products.filter(p => p.stock < 20).length, color: "text-orange-500" },
+          { label: "Categories",       value: [...new Set(products.map(p => p.category))].length, color: "text-blue-500" },
+        ].map((s) => (
+          <div key={s.label} className="bg-card rounded-2xl p-4 shadow-card">
+            <p className={`text-2xl font-bold font-serif ${s.color}`}>{s.value}</p>
+            <p className="text-muted-foreground text-xs mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-card rounded-2xl shadow-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                {["Product", "Category", "Farmer", "Price", "Stock", "Status", "Action"].map((h) => (
+                  <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {paginated.map((p) => {
+                const farmer = FARMERS.find((f) => f.id === p.farmerId);
+                return (
+                  <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <img src={p.image} alt={p.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                        <div>
+                          <p className="font-medium text-sm">{p.name}</p>
+                          {p.organic && <span className="text-xs text-green-600 font-medium">Organic</span>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-muted-foreground">{p.category}</td>
+                    <td className="py-3 px-4 text-sm">{farmer?.name ?? "—"}</td>
+                    <td className="py-3 px-4 text-sm font-semibold text-primary">${p.price.toFixed(2)}/{p.unit}</td>
+                    <td className="py-3 px-4">
+                      <span className={`font-semibold text-sm ${p.stock < 20 ? "text-orange-500" : "text-foreground"}`}>{p.stock}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        p.stock > 20 ? "bg-green-100 text-green-700" : p.stock > 0 ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"
+                      }`}>
+                        {p.stock > 20 ? "In Stock" : p.stock > 0 ? "Low Stock" : "Out of Stock"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <button onClick={() => handleRemove(p.id)}
+                        className="w-8 h-8 rounded-lg border border-destructive/30 flex items-center justify-center hover:bg-destructive/10 text-destructive transition-colors">
+                        <RiDeleteBinLine className="text-sm" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <p className="text-xs text-muted-foreground">Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</p>
+            <div className="flex items-center gap-1">
+              <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}
+                className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-40">
+                <RiArrowLeftSLine />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all ${
+                    p === page ? "bg-primary text-white" : "border border-border hover:bg-muted"
+                  }`}>{p}</button>
+              ))}
+              <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}
+                className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-40">
+                <RiArrowRightSLine />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   return (
@@ -412,6 +709,8 @@ export default function AdminDashboard() {
             <Route index element={<Overview />} />
             <Route path="users"   element={<ManageUsers />} />
             <Route path="farmers" element={<ApproveFarmers />} />
+            <Route path="products" element={<ProductManagement />} />
+            <Route path="announce" element={<SendAnnouncement />} />
             <Route path="orders" element={
               <div>
                 <h1 className="font-serif text-3xl font-bold mb-6">All Orders</h1>

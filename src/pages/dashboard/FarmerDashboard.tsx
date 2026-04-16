@@ -6,6 +6,10 @@ import {
   RiLeafLine, RiShoppingBagLine, RiBarChartLine, RiAlertLine, RiShieldCheckLine,
   RiUserLine, RiMapPinLine,
 } from "react-icons/ri";
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 import DashboardSidebar from "@/components/features/DashboardSidebar";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -276,52 +280,90 @@ function Inventory() {
   );
 }
 
+const FARMER_MONTHLY = [
+  { month: "Jan", earnings: 820, orders: 18 },
+  { month: "Feb", earnings: 1140, orders: 24 },
+  { month: "Mar", earnings: 980, orders: 21 },
+  { month: "Apr", earnings: 1340, orders: 29 },
+];
+const CHART_COLORS = { primary: "#16a34a", secondary: "#f59e0b", accent: "#3b82f6" };
+
 function Analytics() {
-  const months = ["Jan", "Feb", "Mar", "Apr"];
-  const data = [820, 1140, 980, 1340];
-  const max = Math.max(...data);
   return (
     <div>
-      <h1 className="font-serif text-3xl font-bold mb-6">Sales Analytics</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-card rounded-2xl p-6 shadow-card">
-          <h2 className="font-semibold mb-6">Monthly Earnings</h2>
-          <div className="flex items-end gap-4 h-44">
-            {data.map((val, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-xs font-medium text-primary">${val}</span>
-                <div className="w-full bg-primary/10 rounded-t-lg relative overflow-hidden" style={{ height: `${(val / max) * 100}%` }}>
-                  <div className="absolute bottom-0 w-full bg-primary rounded-t-lg" style={{ height: "70%" }} />
-                </div>
-                <span className="text-xs text-muted-foreground">{months[i]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-card rounded-2xl p-6 shadow-card">
-          <h2 className="font-semibold mb-4">Demand Insights</h2>
-          <div className="space-y-3">
-            {farmerProducts.map((p) => (
-              <div key={p.id}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="truncate">{p.name}</span>
-                  <span className="font-medium shrink-0 ml-2">{p.reviews} orders</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min((p.reviews / 210) * 100, 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {[["Top Product", "Organic Tomatoes · $3.99/lb"], ["Avg. Order Value", "$15.72"], ["Total Reviews", farmerProducts.reduce((a, p) => a + p.reviews, 0) + "+"]].map(([label, val]) => (
+      <h1 className="font-serif text-3xl font-bold mb-2">Sales Analytics</h1>
+      <p className="text-muted-foreground mb-6">Performance overview for your farm listings.</p>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+        {[
+          ["Top Product", "Organic Tomatoes"],
+          ["Avg. Order Value", "$15.72"],
+          ["Total Reviews", farmerProducts.reduce((a, p) => a + p.reviews, 0) + "+"],
+        ].map(([label, val]) => (
           <div key={label} className="bg-card rounded-2xl p-5 shadow-card">
             <p className="text-muted-foreground text-sm mb-1">{label}</p>
-            <p className="font-bold text-foreground">{val}</p>
+            <p className="font-bold text-lg text-foreground">{val}</p>
           </div>
         ))}
+      </div>
+
+      {/* Monthly Earnings Bar Chart */}
+      <div className="bg-card rounded-2xl p-6 shadow-card mb-6">
+        <h2 className="font-semibold mb-1">Monthly Earnings &amp; Orders</h2>
+        <p className="text-muted-foreground text-xs mb-5">Jan – Apr 2026</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={FARMER_MONTHLY} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="left" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+            <Tooltip
+              formatter={(value: number, name: string) => [
+                name === "earnings" ? `$${value}` : value,
+                name === "earnings" ? "Earnings" : "Orders",
+              ]}
+              contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+            />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+            <Bar yAxisId="left" dataKey="earnings" fill={CHART_COLORS.primary} radius={[6, 6, 0, 0]} name="Earnings" />
+            <Bar yAxisId="right" dataKey="orders" fill={CHART_COLORS.secondary} radius={[6, 6, 0, 0]} name="Orders" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Order Trend Line Chart */}
+      <div className="bg-card rounded-2xl p-6 shadow-card mb-6">
+        <h2 className="font-semibold mb-1">Order Trend</h2>
+        <p className="text-muted-foreground text-xs mb-5">Monthly order volume over time</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={FARMER_MONTHLY} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+            <Line type="monotone" dataKey="orders" stroke={CHART_COLORS.primary} strokeWidth={2.5} dot={{ r: 5, fill: CHART_COLORS.primary }} name="Orders" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Demand Insights */}
+      <div className="bg-card rounded-2xl p-6 shadow-card">
+        <h2 className="font-semibold mb-5">Demand Insights — Product Comparison</h2>
+        <ResponsiveContainer width="100%" height={farmerProducts.length * 52 + 40}>
+          <BarChart
+            layout="vertical"
+            data={farmerProducts.map((p) => ({ name: p.name.length > 18 ? p.name.slice(0, 18) + "…" : p.name, reviews: p.reviews, rating: p.rating }))}
+            margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+            <Bar dataKey="reviews" fill={CHART_COLORS.primary}  radius={[0, 6, 6, 0]} name="Reviews" />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
